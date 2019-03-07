@@ -18,7 +18,7 @@ class Sprite {
         this.runtime = runtime;
         if (!blocks) {
             // Shared set of blocks for all clones.
-            blocks = new Blocks();
+            blocks = new Blocks(runtime);
         }
         this.blocks = blocks;
         /**
@@ -153,7 +153,7 @@ class Sprite {
         newSprite.sounds = this.sounds.map(sound => {
             const newSound = Object.assign({}, sound);
             const soundAsset = sound.asset;
-            assetPromises.push(loadSoundFromAsset(newSound, soundAsset, this.runtime, newSprite));
+            assetPromises.push(loadSoundFromAsset(newSound, soundAsset, this.runtime, newSprite.soundBank));
             return newSound;
         });
 
