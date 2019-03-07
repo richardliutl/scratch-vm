@@ -66,7 +66,7 @@ class Scratch3MusicBlocks {
         this._instrumentPlayerArrays = [];
 
         /**
-         * An array of arrays of sound players. Each instrument mya have an audio player for each playable note.
+         * An array of arrays of sound players. Each instrument may have an audio player for each playable note.
          * @type {Array[]}
          * @private
          */
