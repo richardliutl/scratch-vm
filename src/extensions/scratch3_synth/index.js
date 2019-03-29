@@ -29,11 +29,16 @@ class Scratch3SynthBlocks {
         this.timer = new Timer();
         this.spectrumTime = this.timer.time();
         this.started = false;
+
+        runtime.on('PROJECT_STOP_ALL', this.clear.bind(this));
     }
 
     /**
      * @returns {object} metadata for this extension and its blocks.
      */
+
+     // space blocks with 
+                // '---',
     getInfo () {
         return {
             id: 'synth',
@@ -42,17 +47,18 @@ class Scratch3SynthBlocks {
             menuIconURI: menuIconURI,
             blocks: [
                 {
-                    opcode: 'getBand',
-                    blockType: BlockType.REPORTER,
+                    opcode: 'whenPeakSliding',
                     text: formatMessage({
-                        id: 'synth.getBand',
-                        default: 'get band [BAND]',
-                        description: 'get the energy in the requested frequency band index'
+                        id: 'synth.whenPeakSliding',
+                        default: 'when [BAND] sound played',
+                        description: 'check when audio peaks, calibratedly, in a range'
                     }),
+                    blockType: BlockType.HAT,
                     arguments: {
                         BAND: {
-                            type: ArgumentType.NUMBER,
-                            defaultValue: 1
+                            type: ArgumentType.STRING,
+                            menu: 'bands',
+                            defaultValue: 'bass'
                         }
                     }
                 },
@@ -61,62 +67,78 @@ class Scratch3SynthBlocks {
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
                         id: 'synth.get3Band',
-                        default: 'get 3-band [BAND]',
+                        default: 'loudness of [BAND]',
                         description: 'get the energy in the requested three frequency band index'
                     }),
                     arguments: {
                         BAND: {
                             type: ArgumentType.STRING,
                             menu: 'bands',
-                            defaultValue: 'low'
+                            defaultValue: 'bass'
                         }
                     }
                 },
+                // {
+                //     opcode: 'get3BandSliding',
+                //     blockType: BlockType.REPORTER,
+                //     text: formatMessage({
+                //         id: 'synth.get3BandAvg',
+                //         default: 'get sliding 3-band [BAND] data',
+                //         description: 'get the sliding average data in the requested three frequency band index'
+                //     }),
+                //     arguments: {
+                //         BAND: {
+                //             type: ArgumentType.STRING,
+                //             menu: 'bands',
+                //             defaultValue: 'low'
+                //         }
+                //     }
+                // },
+                // {
+                //     opcode: 'whenPeak',
+                //     text: formatMessage({
+                //         id: 'synth.whenPeak',
+                //         default: 'when [BAND] peak',
+                //         description: 'check when audio peaks in a range'
+                //     }),
+                //     blockType: BlockType.HAT,
+                //     arguments: {
+                //         BAND: {
+                //             type: ArgumentType.STRING,
+                //             menu: 'bands',
+                //             defaultValue: 'low'
+                //         }
+                //     }
+                // },
                 {
-                    opcode: 'get3BandSliding',
+                    opcode: 'setAudioInput',
+                    text: formatMessage({
+                        id: 'synth.setAudioInput',
+                        default: 'listen to [INPUT]',
+                        description: 'set audio input to microphone or project'
+                    }),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        INPUT: {
+                            type: ArgumentType.STRING,
+                            menu: 'inputs',
+                            defaultValue: 'project'
+                        }
+                    }
+                },
+                '---',
+                {
+                    opcode: 'getBand',
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
-                        id: 'synth.get3BandAvg',
-                        default: 'get sliding 3-band [BAND] data',
-                        description: 'get the sliding average data in the requested three frequency band index'
+                        id: 'synth.getBand',
+                        default: 'energy at [BAND] Hz',
+                        description: 'get the energy in the requested frequency band index'
                     }),
                     arguments: {
                         BAND: {
-                            type: ArgumentType.STRING,
-                            menu: 'bands',
-                            defaultValue: 'low'
-                        }
-                    }
-                },
-                {
-                    opcode: 'whenPeak',
-                    text: formatMessage({
-                        id: 'synth.whenPeak',
-                        default: 'when [BAND] peak',
-                        description: 'check when audio peaks in a range'
-                    }),
-                    blockType: BlockType.HAT,
-                    arguments: {
-                        BAND: {
-                            type: ArgumentType.STRING,
-                            menu: 'bands',
-                            defaultValue: 'low'
-                        }
-                    }
-                },
-                {
-                    opcode: 'whenPeakSliding',
-                    text: formatMessage({
-                        id: 'synth.whenPeakSliding',
-                        default: 'when [BAND] peak calibrated',
-                        description: 'check when audio peaks, calibratedly, in a range'
-                    }),
-                    blockType: BlockType.HAT,
-                    arguments: {
-                        BAND: {
-                            type: ArgumentType.STRING,
-                            menu: 'bands',
-                            defaultValue: 'low'
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
                         }
                     }
                 }
@@ -124,16 +146,30 @@ class Scratch3SynthBlocks {
             menus: {
                 bands: [
                     {
-                        text: 'low',
+                        text: 'bass',
                         value: 'low'
                     },
                     {
-                        text: 'mid',
+                        text: 'middle',
                         value: 'mid'
                     },
                     {
-                        text: 'high',
+                        text: 'treble',
                         value: 'high'
+                    }
+                ],
+                inputs: [
+                    {
+                        text: 'microphone',
+                        value: 'microphone'
+                    },
+                    {
+                        text: 'project',
+                        value: 'project'
+                    },
+                    {
+                        text: 'all',
+                        value: 'all'
                     }
                 ]
             }
@@ -141,10 +177,14 @@ class Scratch3SynthBlocks {
     }
 
     whenPeakSliding (args) {
+        if (!this.conservativeAnalyze()) return -1;
+
         return this._isPeakSliding(args.BAND);
     }
 
     isPeakSliding (args) {
+        if (!this.conservativeAnalyze()) return -1;
+
         return this._isPeakSliding(args.BAND);
     }
 
@@ -157,17 +197,23 @@ class Scratch3SynthBlocks {
             'high': 2
         };
 
-        // return this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]] > 20;
-        var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / this.slidingStdResultArray[bandIndex[band]];
-        console.log(band + ':\t' + norm);
-        return norm > 1; // Use mean difference array!
+        if(this.slidingStdResultArray[bandIndex[band]] != 0) {
+            var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / this.slidingStdResultArray[bandIndex[band]];
+            // console.log(band + ':\t' + norm);
+            return norm > 1; // Use mean difference array!
+        }
+        return false;
     }
 
     whenPeak (args) {
+        if (!this.conservativeAnalyze()) return -1;
+
         return this._isPeak(args.BAND);
     }
 
     isPeak (args) {
+        if (!this.conservativeAnalyze()) return -1;
+
         return this._isPeak(args.BAND);
     }
 
@@ -184,13 +230,7 @@ class Scratch3SynthBlocks {
     }
 
     get3BandSliding (args) {
-        if (typeof this.runtime.currentStepTime === 'undefined') return -1;
-
-        const timeSinceSpectrum = this.timer.time() - this.spectrumTime;
-        if (timeSinceSpectrum > this.runtime.currentStepTime) {
-            this.analyze();
-            this.spectrumTime = this.timer.time();
-        }
+        if (!this.conservativeAnalyze()) return -1;
 
         return this.get3BandSlidingAvg(args.BAND);
     }
@@ -204,17 +244,11 @@ class Scratch3SynthBlocks {
             'high': 2
         };
 
-        return this.slidingAvgResultArray[bandIndex[band]]; // All the heavy lifting happens in analyze
+        return this.slidingAvgResultArray[bandIndex[band]];
     }
 
     get3Band (args) {
-        if (typeof this.runtime.currentStepTime === 'undefined') return -1;
-
-        const timeSinceSpectrum = this.timer.time() - this.spectrumTime;
-        if (timeSinceSpectrum > this.runtime.currentStepTime) {
-            this.analyze();
-            this.spectrumTime = this.timer.time();
-        }
+        if (!this.conservativeAnalyze()) return -1;
 
         return this.get3BandValue(args.BAND);
     }
@@ -232,13 +266,7 @@ class Scratch3SynthBlocks {
     }
 
     getBand (args) {
-        if (typeof this.runtime.currentStepTime === 'undefined') return -1;
-
-        const timeSinceSpectrum = this.timer.time() - this.spectrumTime;
-        if (timeSinceSpectrum > this.runtime.currentStepTime) {
-            this.analyze();
-            this.spectrumTime = this.timer.time();
-        }
+        if (!this.conservativeAnalyze()) return -1;
 
         return this.getBandValue(args.BAND);
     }
@@ -254,9 +282,33 @@ class Scratch3SynthBlocks {
         return energy;
     }
 
+    setAudioInput (args) {
+    }
+
+    /**
+     * Analyze based on step time. True on no errors.
+     * @returns {boolean} whether step time is defined.
+     * @private
+     */
+    conservativeAnalyze() {
+        if (typeof this.runtime.currentStepTime === 'undefined') return false;
+
+        const timeSinceSpectrum = this.timer.time() - this.spectrumTime;
+        if (timeSinceSpectrum > this.runtime.currentStepTime) {
+            // 1/30 sec. ~ 33ms (scratch step time)
+            // 2048/48000 ~ 43ms (audio )
+            this.spectrumTime = this.timer.time();
+            console.log(this.spectrumTime);
+            this.analyze();
+        }
+
+        return true;
+    }
+
     analyze () {
         if (typeof this.runtime.audioEngine === 'undefined') return;
         const audioContext = this.runtime.audioEngine.audioContext;
+        // debugger;
 
         // master gain
         this.inputNode = this.runtime.audioEngine.inputNode;
@@ -309,6 +361,7 @@ class Scratch3SynthBlocks {
         
         // Refresh frequencies
         this.analyser.getByteFrequencyData(this.frequencyArray);
+        // console.log(this.frequencyArray);
 
         // Update average energy
         let energyArr = [];
@@ -322,7 +375,7 @@ class Scratch3SynthBlocks {
             'high': 2
         };
         for (let band of ['low', 'mid', 'high']) {
-            switch (band) {
+            switch (band) { // Stored parts of frequency array into energy array, based on desired band.
                 case 'low':
                     energyArr = this.frequencyArray.slice(0,bandValues['low']);
                     break;
@@ -333,27 +386,18 @@ class Scratch3SynthBlocks {
                     energyArr = this.frequencyArray.slice(bandValues['mid'],this.frequencyArray.length);
                     break;
             }
-            this.avgEnergyArray[bandIndex[band]] = Math.round(energyArr.reduce((a,b)=>a+b,0) / energyArr.length);
-        }
+            // Store average energies into avgEnergyArray, low average at index 0, and mid, high, etc.
+            var sum = 0;
+            for( var i = 0; i < energyArr.length; i++ ){
+                sum += energyArr[i];
+            }
+            // if(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]) < 1) {
+            //     console.log(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]));
+            // }
+            this.avgEnergyArray[bandIndex[band]] = sum/energyArr.length;
 
-        // Sliding window peak
-        // const decay = 0.8;
-        // for(let i=0; i<3; i++) {
-        //     if(this.timer.time() - this.avgEnergyPeaks[i][1] > 100) {
-        //         this.avgEnergyPeaks[i][0] *= decay;
-        //         this.avgEnergyPeaks[i][1] = this.timer.time();
-        //     }
-        //     if(this.timer.time() - this.avgEnergyDips[i][1] > 100) {
-        //         this.avgEnergyDips[i][0] /= decay;
-        //         this.avgEnergyDips[i][1] = this.timer.time();
-        //     }
-        //     if(this.avgEnergyArray[i] > this.avgEnergyPeaks[i][0]) {
-        //         this.avgEnergyPeaks[i] = [this.avgEnergyArray[i], this.timer.time()];
-        //     }
-        //     if(this.avgEnergyArray[i] < this.avgEnergyDips[i][0]) {
-        //         this.avgEnergyDips[i] = [this.avgEnergyArray[i], this.timer.time()];
-        //     }
-        // }
+            // this.avgEnergyArray[bandIndex[band]] = Math.round(energyArr.reduce((a,b)=>a+b,0) / energyArr.length);
+        }
         
         // Sliding avg filter
         for (var band=0; band<3; band++) {
@@ -371,6 +415,22 @@ class Scratch3SynthBlocks {
         // Copy current avg energy difference into the right index of sliding array
         this.slidingStdArray[this.slidingStdIndex].splice(0, this.slidingStdArray[this.slidingStdIndex].length, ...this.diffEnergyStdArray);
         this.slidingStdIndex = (this.slidingStdIndex + 1)%(this.slidingStdOrder + 1);
+    }
+
+    /**
+     * The "clear" block clears the sound arrays' contents.
+     */
+    clear () {
+        // For sliding mean
+        this.slidingAvgArray = new Array(7).fill(0).map(() => new Array(3).fill(0)); // best way to create 2d array
+        this.slidingAvgResultArray = (new Array(3)).fill(0); // calibrating average
+
+        // For sliding standard dev
+        this.slidingStdArray = new Array(7).fill(0).map(() => new Array(3).fill(0)); // best way to create 2d array
+        this.diffEnergyStdArray = (new Array(3)).fill(0); // current squared differences
+        this.slidingStdResultArray = (new Array(3)).fill(0); // calibrating standard dev
+
+        this.avgEnergyArray = (new Array(3)).fill(0);
     }
 }
 
