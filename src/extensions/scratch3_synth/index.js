@@ -28,6 +28,7 @@ class Scratch3SynthBlocks {
 
         this.timer = new Timer();
         this.spectrumTime = this.timer.time();
+        this.audioInput = 'project';
         this.started = false;
 
         runtime.on('PROJECT_STOP_ALL', this.clear.bind(this));
@@ -197,7 +198,7 @@ class Scratch3SynthBlocks {
             'high': 2
         };
 
-        if(this.slidingStdResultArray[bandIndex[band]] != 0) {
+        if(this.slidingStdResultArray[bandIndex[band]] != 0 && this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]] != 0) {
             var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / this.slidingStdResultArray[bandIndex[band]];
             // console.log(band + ':\t' + norm);
             return norm > 1; // Use mean difference array!
@@ -283,6 +284,32 @@ class Scratch3SynthBlocks {
     }
 
     setAudioInput (args) {
+        console.log(`listening to ${args.INPUT}`);
+
+        this.audioInput = args.INPUT;
+    }
+
+    connectMicInput() {
+        if (typeof this.runtime.audioEngine === 'undefined') return;
+        const audioContext = this.runtime.audioEngine.audioContext;
+
+        // The microphone has not been set up, so try to connect to it
+        if (!this.mic && !this.connectingToMic) {
+            this.connectingToMic = true; // prevent multiple connection attempts
+            navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
+                this.audioStream = stream;
+                this.mic = audioContext.createMediaStreamSource(stream);
+                this.analyserMic = audioContext.createAnalyser();
+                this.analyserMic.fftSize = 2048;
+                this.analyserMic.smoothingTimeConstant = 0.2;
+                this.mic.connect(this.analyserMic);
+                this.frequencyArrayMic = new Uint8Array(this.analyserMic.frequencyBinCount);
+
+            })
+            .catch(err => {
+                log.warn(err);
+            });
+        }
     }
 
     /**
@@ -298,7 +325,6 @@ class Scratch3SynthBlocks {
             // 1/30 sec. ~ 33ms (scratch step time)
             // 2048/48000 ~ 43ms (audio )
             this.spectrumTime = this.timer.time();
-            console.log(this.spectrumTime);
             this.analyze();
         }
 
@@ -313,23 +339,17 @@ class Scratch3SynthBlocks {
         // master gain
         this.inputNode = this.runtime.audioEngine.inputNode;
 
-        // // The microphone has not been set up, so try to connect to it
-        // if (!this.mic && !this.connectingToMic) {
-        //     this.connectingToMic = true; // prevent multiple connection attempts
-        //     navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
-        //         this.audioStream = stream;
-        //         this.mic = audioContext.createMediaStreamSource(stream);
-        //         this.analyser = audioContext.createAnalyser();
-        //         this.analyser.fftSize = 1024;
-        //         this.analyser.smoothingTimeConstant = 0.2;
-        //         this.mic.connect(this.analyser);
-        //         this.frequencyArray = new Uint8Array(this.analyser.frequencyBinCount);
+        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
+            case 'microphone':
+                this.connectMicInput();
+                break;
+            case 'project':
+                break;
+            case 'all':
+                this.connectMicInput();
+                break;
+        }
 
-        //     })
-        //         .catch(err => {
-        //             log.warn(err);
-        //         });
-        // }
         if(!this.started) {
             this.analyser = audioContext.createAnalyser();
             this.analyser.fftSize = 2048;
@@ -355,19 +375,19 @@ class Scratch3SynthBlocks {
         }
 
         // If the microphone is set up and active, analyze the spectrum
-        // if (this.mic && this.audioStream.active) {
-        //     this.analyser.getByteFrequencyData(this.frequencyArray);
-        // }
-        
-        // Refresh frequencies
+        if (this.mic && this.audioStream.active) {
+            this.analyserMic.getByteFrequencyData(this.frequencyArrayMic);
+        }
+
+        // Refresh project sound frequencies
         this.analyser.getByteFrequencyData(this.frequencyArray);
-        // console.log(this.frequencyArray);
 
         // Update average energy
         let energyArr = [];
-        let bandValues = { // Three band thresholds.
-            'low': 13,
-            'mid': 150
+        let bandValues = { // Three band thresholds. Nth bin corresponds to N*(sample rate [44.1k])/(FFT size) Hz
+            'low': [0, 13], // 300 Hz
+            'mid': [13, 150], // 3500 Hz
+            'high': [150, 512],
         };
         let bandIndex = {
             'low': 0,
@@ -375,17 +395,30 @@ class Scratch3SynthBlocks {
             'high': 2
         };
         for (let band of ['low', 'mid', 'high']) {
-            switch (band) { // Stored parts of frequency array into energy array, based on desired band.
-                case 'low':
-                    energyArr = this.frequencyArray.slice(0,bandValues['low']);
+            // switch (band) { // Stored parts of frequency array into energy array, based on desired band.
+            //     case 'low':
+            //         energyArr = this.frequencyArray.slice(0,bandValues['low']);
+            //         break;
+            //     case 'mid':
+            //         energyArr = this.frequencyArray.slice(bandValues['low'],bandValues['mid']);
+            //         break;
+            //     case 'high':
+            //         energyArr = this.frequencyArray.slice(bandValues['mid'],this.frequencyArray.length);
+            //         break;
+            // }
+            switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
+                case 'microphone':
+                    energyArr = this.frequencyArrayMic.slice(bandValues[band][0],bandValues[band][1]);
                     break;
-                case 'mid':
-                    energyArr = this.frequencyArray.slice(bandValues['low'],bandValues['mid']);
+                case 'project':
+                    energyArr = this.frequencyArray.slice(bandValues[band][0],bandValues[band][1]);
                     break;
-                case 'high':
-                    energyArr = this.frequencyArray.slice(bandValues['mid'],this.frequencyArray.length);
+                case 'all':
+                    energyArr = [...this.frequencyArray.slice(bandValues[band][0],bandValues[band][1]),
+                                ...this.frequencyArrayMic.slice(bandValues[band][0],bandValues[band][1])];
                     break;
             }
+            console.log(energyArr);
             // Store average energies into avgEnergyArray, low average at index 0, and mid, high, etc.
             var sum = 0;
             for( var i = 0; i < energyArr.length; i++ ){
@@ -394,7 +427,7 @@ class Scratch3SynthBlocks {
             // if(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]) < 1) {
             //     console.log(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]));
             // }
-            this.avgEnergyArray[bandIndex[band]] = sum/energyArr.length;
+            this.avgEnergyArray[bandIndex[band]] = sum / energyArr.length;
 
             // this.avgEnergyArray[bandIndex[band]] = Math.round(energyArr.reduce((a,b)=>a+b,0) / energyArr.length);
         }
