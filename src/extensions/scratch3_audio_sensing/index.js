@@ -18,7 +18,7 @@ const blockIconURI = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxIiBpZD0iTGF5
  * @param {Runtime} runtime - the runtime instantiating this block package.
  * @constructor
  */
-class Scratch3SynthBlocks {
+class Scratch3AudioSensingBlocks {
     constructor (runtime) {
         /**
          * The runtime instantiating this block package.
@@ -42,7 +42,7 @@ class Scratch3SynthBlocks {
                 // '---',
     getInfo () {
         return {
-            id: 'synth',
+            id: 'audioSensing',
             name: 'Spectrum',
             blockIconURI: blockIconURI,
             menuIconURI: menuIconURI,
@@ -50,7 +50,7 @@ class Scratch3SynthBlocks {
                 {
                     opcode: 'whenPeakSliding',
                     text: formatMessage({
-                        id: 'synth.whenPeakSliding',
+                        id: 'audioSensing.whenPeakSliding',
                         default: 'when [BAND] sound played',
                         description: 'check when audio peaks, calibratedly, in a range'
                     }),
@@ -67,7 +67,7 @@ class Scratch3SynthBlocks {
                     opcode: 'get3Band',
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
-                        id: 'synth.get3Band',
+                        id: 'audioSensing.get3Band',
                         default: 'loudness of [BAND]',
                         description: 'get the energy in the requested three frequency band index'
                     }),
@@ -83,7 +83,7 @@ class Scratch3SynthBlocks {
                 //     opcode: 'get3BandSliding',
                 //     blockType: BlockType.REPORTER,
                 //     text: formatMessage({
-                //         id: 'synth.get3BandAvg',
+                //         id: 'audioSensing.get3BandAvg',
                 //         default: 'get sliding 3-band [BAND] data',
                 //         description: 'get the sliding average data in the requested three frequency band index'
                 //     }),
@@ -98,7 +98,7 @@ class Scratch3SynthBlocks {
                 // {
                 //     opcode: 'whenPeak',
                 //     text: formatMessage({
-                //         id: 'synth.whenPeak',
+                //         id: 'audioSensing.whenPeak',
                 //         default: 'when [BAND] peak',
                 //         description: 'check when audio peaks in a range'
                 //     }),
@@ -114,7 +114,7 @@ class Scratch3SynthBlocks {
                 {
                     opcode: 'setAudioInput',
                     text: formatMessage({
-                        id: 'synth.setAudioInput',
+                        id: 'audioSensing.setAudioInput',
                         default: 'listen to [INPUT]',
                         description: 'set audio input to microphone or project'
                     }),
@@ -132,7 +132,7 @@ class Scratch3SynthBlocks {
                     opcode: 'getBand',
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
-                        id: 'synth.getBand',
+                        id: 'audioSensing.getBand',
                         default: 'energy at [BAND] Hz',
                         description: 'get the energy in the requested frequency band index'
                     }),
@@ -467,4 +467,4 @@ class Scratch3SynthBlocks {
     }
 }
 
-module.exports = Scratch3SynthBlocks;
+module.exports = Scratch3AudioSensingBlocks;
