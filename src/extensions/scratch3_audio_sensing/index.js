@@ -43,7 +43,7 @@ class Scratch3AudioSensingBlocks {
     getInfo () {
         return {
             id: 'audioSensing',
-            name: 'Spectrum',
+            name: 'Audio Sensing',
             blockIconURI: blockIconURI,
             menuIconURI: menuIconURI,
             blocks: [
@@ -284,7 +284,7 @@ class Scratch3AudioSensingBlocks {
     }
 
     setAudioInput (args) {
-        console.log(`listening to ${args.INPUT}`);
+        // console.log(`listening to ${args.INPUT}`);
 
         this.audioInput = args.INPUT;
     }
@@ -353,6 +353,8 @@ class Scratch3AudioSensingBlocks {
         if(!this.started) {
             this.analyser = audioContext.createAnalyser();
             this.analyser.fftSize = 2048;
+            this.sampleRate = audioContext.sampleRate;
+            console.log(this.sampleRate);
             this.analyser.smoothingTimeConstant = 0.2;
             this.inputNode.connect(this.analyser);
             this.frequencyArray = new Uint8Array(this.analyser.frequencyBinCount);
@@ -371,6 +373,29 @@ class Scratch3AudioSensingBlocks {
             this.slidingStdResultArray = (new Array(3)).fill(0); // calibrating standard dev
 
             this.avgEnergyArray = (new Array(3)).fill(0);
+
+            // EnergyArr calculation setup
+            this.hzCutoff = { // Three band thresholds in Hertz https://www.teachmeaudio.com/mixing/techniques/audio-spectrum/
+                'low': 250,
+                'mid': 2000,
+                'high': 6000,
+            };
+            this.bandValues = { // Three band thresholds. Nth bin corresponds to N*(sample rate [48 k])/(FFT size) Hz
+                'low': [0, Math.round(this.hzCutoff['low'] * this.analyser.fftSize / this.sampleRate)],
+                'mid': [Math.round(this.hzCutoff['low'] * this.analyser.fftSize / this.sampleRate), Math.round(this.hzCutoff['mid'] * this.analyser.fftSize / this.sampleRate)],
+                'high': [Math.round(this.hzCutoff['mid'] * this.analyser.fftSize / this.sampleRate), Math.round(this.hzCutoff['high'] * this.analyser.fftSize / this.sampleRate)],
+            };
+            // let bandValues = { // Three band thresholds. Nth bin corresponds to N*(sample rate [48 k])/(FFT size) Hz
+            //     'low': [0, 13], // 300 Hz
+            //     'mid': [13, 150], // 3500 Hz
+            //     'high': [150, 256],
+            // };
+            this.bandIndex = {
+                'low': 0,
+                'mid': 1,
+                'high': 2
+            };
+
             this.started = true;
         }
 
@@ -383,17 +408,8 @@ class Scratch3AudioSensingBlocks {
         this.analyser.getByteFrequencyData(this.frequencyArray);
 
         // Update average energy
+
         let energyArr = [];
-        let bandValues = { // Three band thresholds. Nth bin corresponds to N*(sample rate [44.1k])/(FFT size) Hz
-            'low': [0, 13], // 300 Hz
-            'mid': [13, 150], // 3500 Hz
-            'high': [150, 512],
-        };
-        let bandIndex = {
-            'low': 0,
-            'mid': 1,
-            'high': 2
-        };
         for (let band of ['low', 'mid', 'high']) {
             // switch (band) { // Stored parts of frequency array into energy array, based on desired band.
             //     case 'low':
@@ -408,17 +424,19 @@ class Scratch3AudioSensingBlocks {
             // }
             switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
                 case 'microphone':
-                    energyArr = this.frequencyArrayMic.slice(bandValues[band][0],bandValues[band][1]);
+                    energyArr = this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1]);
                     break;
                 case 'project':
-                    energyArr = this.frequencyArray.slice(bandValues[band][0],bandValues[band][1]);
+                    energyArr = this.frequencyArray.slice(this.bandValues[band][0],this.bandValues[band][1]);
                     break;
                 case 'all':
-                    energyArr = [...this.frequencyArray.slice(bandValues[band][0],bandValues[band][1]),
-                                ...this.frequencyArrayMic.slice(bandValues[band][0],bandValues[band][1])];
+                    energyArr = this.frequencyArray.slice(this.bandValues[band][0],this.bandValues[band][1]);
+                    for( var i = 0; i < energyArr.length; i++ ){
+                        energyArr[i] = Math.max(energyArr[i], this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1])[i])
+                    }
                     break;
             }
-            console.log(energyArr);
+            // console.log(energyArr);
             // Store average energies into avgEnergyArray, low average at index 0, and mid, high, etc.
             var sum = 0;
             for( var i = 0; i < energyArr.length; i++ ){
@@ -427,11 +445,13 @@ class Scratch3AudioSensingBlocks {
             // if(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]) < 1) {
             //     console.log(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]));
             // }
-            this.avgEnergyArray[bandIndex[band]] = sum / energyArr.length;
+            this.avgEnergyArray[this.bandIndex[band]] = sum / energyArr.length;
 
             // this.avgEnergyArray[bandIndex[band]] = Math.round(energyArr.reduce((a,b)=>a+b,0) / energyArr.length);
         }
         
+        console.log(this.slidingStdResultArray);
+
         // Sliding avg filter
         for (var band=0; band<3; band++) {
             this.slidingAvgResultArray[band] += (this.avgEnergyArray[band] - this.slidingAvgArray[this.slidingAvgIndex][band])/(this.slidingAvgOrder + 1);
@@ -443,7 +463,7 @@ class Scratch3AudioSensingBlocks {
         // Sliding std filter and some std computation
         for (var band=0; band<3; band++) {
             this.diffEnergyStdArray[band] = (this.avgEnergyArray[band] - this.slidingAvgResultArray[band])**2;
-            this.slidingStdResultArray[band] = Math.sqrt(this.slidingStdResultArray[band]**2 + ((this.diffEnergyStdArray[band] - this.slidingStdArray[this.slidingStdIndex][band]) / this.slidingStdOrder));
+            this.slidingStdResultArray[band] = Math.sqrt(Math.abs(this.slidingStdResultArray[band]**2 + ((this.diffEnergyStdArray[band] - this.slidingStdArray[this.slidingStdIndex][band]) / this.slidingStdOrder)));
         }
         // Copy current avg energy difference into the right index of sliding array
         this.slidingStdArray[this.slidingStdIndex].splice(0, this.slidingStdArray[this.slidingStdIndex].length, ...this.diffEnergyStdArray);
