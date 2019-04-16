@@ -18,7 +18,7 @@ const blockIconURI = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxIiBpZD0iTGF5
  * @param {Runtime} runtime - the runtime instantiating this block package.
  * @constructor
  */
-class Scratch3AudioSensingBlocks {
+class Scratch3SoundSensingBlocks {
     constructor (runtime) {
         /**
          * The runtime instantiating this block package.
@@ -42,15 +42,15 @@ class Scratch3AudioSensingBlocks {
                 // '---',
     getInfo () {
         return {
-            id: 'audioSensing',
-            name: 'Audio Sensing',
+            id: 'soundSensing',
+            name: 'Sound Sensing',
             blockIconURI: blockIconURI,
             menuIconURI: menuIconURI,
             blocks: [
                 {
                     opcode: 'whenPeakSliding',
                     text: formatMessage({
-                        id: 'audioSensing.whenPeakSliding',
+                        id: 'soundSensing.whenPeakSliding',
                         default: 'when [BAND] sound played',
                         description: 'check when audio peaks, calibratedly, in a range'
                     }),
@@ -59,7 +59,7 @@ class Scratch3AudioSensingBlocks {
                         BAND: {
                             type: ArgumentType.STRING,
                             menu: 'bands',
-                            defaultValue: 'bass'
+                            defaultValue: 'low'
                         }
                     }
                 },
@@ -67,7 +67,7 @@ class Scratch3AudioSensingBlocks {
                     opcode: 'get3Band',
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
-                        id: 'audioSensing.get3Band',
+                        id: 'soundSensing.get3Band',
                         default: 'loudness of [BAND]',
                         description: 'get the energy in the requested three frequency band index'
                     }),
@@ -75,7 +75,7 @@ class Scratch3AudioSensingBlocks {
                         BAND: {
                             type: ArgumentType.STRING,
                             menu: 'bands',
-                            defaultValue: 'bass'
+                            defaultValue: 'low'
                         }
                     }
                 },
@@ -83,7 +83,7 @@ class Scratch3AudioSensingBlocks {
                 //     opcode: 'get3BandSliding',
                 //     blockType: BlockType.REPORTER,
                 //     text: formatMessage({
-                //         id: 'audioSensing.get3BandAvg',
+                //         id: 'soundSensing.get3BandAvg',
                 //         default: 'get sliding 3-band [BAND] data',
                 //         description: 'get the sliding average data in the requested three frequency band index'
                 //     }),
@@ -98,7 +98,7 @@ class Scratch3AudioSensingBlocks {
                 // {
                 //     opcode: 'whenPeak',
                 //     text: formatMessage({
-                //         id: 'audioSensing.whenPeak',
+                //         id: 'soundSensing.whenPeak',
                 //         default: 'when [BAND] peak',
                 //         description: 'check when audio peaks in a range'
                 //     }),
@@ -114,7 +114,7 @@ class Scratch3AudioSensingBlocks {
                 {
                     opcode: 'setAudioInput',
                     text: formatMessage({
-                        id: 'audioSensing.setAudioInput',
+                        id: 'soundSensing.setAudioInput',
                         default: 'listen to [INPUT]',
                         description: 'set audio input to microphone or project'
                     }),
@@ -129,10 +129,27 @@ class Scratch3AudioSensingBlocks {
                 },
                 '---',
                 {
+                    opcode: 'replaySound',
+                    text: formatMessage({
+                        id: 'soundSensing.replaySound',
+                        default: 'replay [BAND] sound',
+                        description: 'play buffered sound from certain frequency range'
+                    }),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        BAND: {
+                            type: ArgumentType.STRING,
+                            menu: 'bands',
+                            defaultValue: 'low'
+                        }
+                    },
+                    hideFromPalette: true
+                },
+                {
                     opcode: 'getBand',
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
-                        id: 'audioSensing.getBand',
+                        id: 'soundSensing.getBand',
                         default: 'energy at [BAND] Hz',
                         description: 'get the energy in the requested frequency band index'
                     }),
@@ -197,11 +214,27 @@ class Scratch3AudioSensingBlocks {
             'mid': 1,
             'high': 2
         };
+        let micCutoff = {
+            'low': 100,
+            'mid': 50,
+            'high': 5
+        };
 
         if(this.slidingStdResultArray[bandIndex[band]] != 0 && this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]] != 0) {
             var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / this.slidingStdResultArray[bandIndex[band]];
-            // console.log(band + ':\t' + norm);
-            return norm > 1; // Use mean difference array!
+            console.log(band + ':\t' + this.avgEnergyArray[bandIndex[band]]);
+            if(norm > 1 && band == 'low') {
+                this.replayBuf = this.soundBuf;
+            }
+        
+            switch (this.audioInput) { // Ensure minimum energy for microphone inputs
+                case 'microphone':
+                    return this.avgEnergyArray[bandIndex[band]] > micCutoff[band] && norm > 1;
+                case 'project':
+                    return norm > 1;
+                case 'all':
+                    return this.avgEnergyArray[bandIndex[band]] > micCutoff[band] && norm > 1;
+            }
         }
         return false;
     }
@@ -275,7 +308,8 @@ class Scratch3AudioSensingBlocks {
     getBandValue (band) {
         if (typeof this.frequencyArray === 'undefined') return -1;
 
-        let bandNum = Cast.toNumber(band);
+        let bandHz = Cast.toNumber(band);
+        let bandNum = Math.round(bandHz * this.analyser.fftSize / this.sampleRate);
         bandNum = MathUtil.clamp(bandNum, 1, this.frequencyArray.length);
         let energy = this.frequencyArray[bandNum - 1];
         energy = (energy / 255) * 100;
@@ -283,9 +317,17 @@ class Scratch3AudioSensingBlocks {
         return energy;
     }
 
-    setAudioInput (args) {
-        // console.log(`listening to ${args.INPUT}`);
+// From https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext
 
+    replaySound (args) {
+        const audioContext = this.runtime.audioEngine.audioContext;
+        this.sound = audioContext.createBufferSource();
+        this.sound.connect(audioContext.destination);
+        this.sound.buffer = this.replayBuf;    
+        this.sound.start();
+    }
+
+    setAudioInput (args) {
         this.audioInput = args.INPUT;
     }
 
@@ -326,6 +368,7 @@ class Scratch3AudioSensingBlocks {
             // 2048/48000 ~ 43ms (audio )
             this.spectrumTime = this.timer.time();
             this.analyze();
+            // console.log(this.soundBuf);
         }
 
         return true;
@@ -385,16 +428,41 @@ class Scratch3AudioSensingBlocks {
                 'mid': [Math.round(this.hzCutoff['low'] * this.analyser.fftSize / this.sampleRate), Math.round(this.hzCutoff['mid'] * this.analyser.fftSize / this.sampleRate)],
                 'high': [Math.round(this.hzCutoff['mid'] * this.analyser.fftSize / this.sampleRate), Math.round(this.hzCutoff['high'] * this.analyser.fftSize / this.sampleRate)],
             };
-            // let bandValues = { // Three band thresholds. Nth bin corresponds to N*(sample rate [48 k])/(FFT size) Hz
-            //     'low': [0, 13], // 300 Hz
-            //     'mid': [13, 150], // 3500 Hz
-            //     'high': [150, 256],
-            // };
             this.bandIndex = {
                 'low': 0,
                 'mid': 1,
                 'high': 2
             };
+
+            // Sound replay setup
+            // this.soundBuf = new Array(2).fill(0).map(() => new Float32Array(4096).fill(0));
+            this.soundBuf;
+            this.replayBuf;
+            var scriptNode = audioContext.createScriptProcessor(4096, 2, 2);
+            scriptNode.connect(audioContext.destination);
+            this.inputNode.connect(scriptNode);
+            
+            scriptNode.onaudioprocess = function(audioProcessingEvent) {
+                // The input buffer is the song we loaded earlier
+                var inputBuffer = audioProcessingEvent.inputBuffer;
+                this.soundBuf = inputBuffer;
+            
+                // The output buffer contains the samples that will be modified and played
+                // var outputBuffer = audioProcessingEvent.outputBuffer;
+            
+                // // Loop through the output channels (in this case there is only one)
+                // for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+                //     var inputData = inputBuffer.getChannelData(channel);
+                //     var outputData = outputBuffer.getChannelData(channel);
+                
+                //     // Loop through the 4096 samples
+                //     for (var sample = 0; sample < inputBuffer.length; sample++) {
+                //         // make output equal to the same as the input
+                //         // outputData[sample] = inputData[sample];
+                //         // this.soundBuf[channel][sample] = inputData[sample];
+                //     }
+                // }
+            }.bind(this)
 
             this.started = true;
         }
@@ -411,17 +479,6 @@ class Scratch3AudioSensingBlocks {
 
         let energyArr = [];
         for (let band of ['low', 'mid', 'high']) {
-            // switch (band) { // Stored parts of frequency array into energy array, based on desired band.
-            //     case 'low':
-            //         energyArr = this.frequencyArray.slice(0,bandValues['low']);
-            //         break;
-            //     case 'mid':
-            //         energyArr = this.frequencyArray.slice(bandValues['low'],bandValues['mid']);
-            //         break;
-            //     case 'high':
-            //         energyArr = this.frequencyArray.slice(bandValues['mid'],this.frequencyArray.length);
-            //         break;
-            // }
             switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
                 case 'microphone':
                     energyArr = this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1]);
@@ -436,21 +493,18 @@ class Scratch3AudioSensingBlocks {
                     }
                     break;
             }
-            // console.log(energyArr);
             // Store average energies into avgEnergyArray, low average at index 0, and mid, high, etc.
             var sum = 0;
             for( var i = 0; i < energyArr.length; i++ ){
                 sum += energyArr[i];
             }
-            // if(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]) < 1) {
-            //     console.log(Math.abs(sum/energyArr.length - this.avgEnergyArray[bandIndex[band]]));
-            // }
+
+            // Trial here to output nearby averages for the bands
             this.avgEnergyArray[this.bandIndex[band]] = sum / energyArr.length;
+            // this.avgEnergyArray[this.bandIndex[band]] = sum;
 
             // this.avgEnergyArray[bandIndex[band]] = Math.round(energyArr.reduce((a,b)=>a+b,0) / energyArr.length);
         }
-        
-        console.log(this.slidingStdResultArray);
 
         // Sliding avg filter
         for (var band=0; band<3; band++) {
@@ -487,4 +541,4 @@ class Scratch3AudioSensingBlocks {
     }
 }
 
-module.exports = Scratch3AudioSensingBlocks;
+module.exports = Scratch3SoundSensingBlocks;
