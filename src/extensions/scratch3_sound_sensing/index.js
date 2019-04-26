@@ -201,6 +201,15 @@ class Scratch3SoundSensingBlocks {
                     hideFromPalette: true
                 },
                 {
+                    opcode: 'whenPeakFlux',
+                    text: formatMessage({
+                        id: 'soundSensing.whenPeakFlux',
+                        default: 'when sound changed',
+                        description: 'check when spectral flux canges, calibratedly'
+                    }),
+                    blockType: BlockType.HAT
+                },
+                {
                     opcode: 'getSpectralFlux',
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
@@ -284,8 +293,8 @@ class Scratch3SoundSensingBlocks {
             'high': 5
         };
 
-        if(Math.sqrt(this.slidingStdResultArray[bandIndex[band]]) != 0 && this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]] != 0) {
-            var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / Math.sqrt(this.slidingStdResultArray[bandIndex[band]]);
+        if(Math.sqrt(this.slidingVarResultArray[bandIndex[band]]) != 0 && this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]] != 0) {
+            var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / Math.sqrt(this.slidingVarResultArray[bandIndex[band]]);
             // console.log(band + ':\t' + this.avgEnergyArray[bandIndex[band]]);
             if(norm > 1 && band == 'low') {
                 this.replayBuf = this.soundBuf;
@@ -301,48 +310,6 @@ class Scratch3SoundSensingBlocks {
             }
         }
         return false;
-    }
-
-    whenPeak (args) {
-        if (!this.conservativeAnalyze()) return -1;
-
-        return this._isPeak(args.BAND);
-    }
-
-    isPeak (args) {
-        if (!this.conservativeAnalyze()) return -1;
-
-        return this._isPeak(args.BAND);
-    }
-
-    _isPeak (band) {
-        if (typeof this.frequencyArray === 'undefined') return false;
-
-        let bandIndex = {
-            'low': 0,
-            'mid': 1,
-            'high': 2
-        };
-
-        return this.avgEnergyArray[bandIndex[band]] > 180;
-    }
-
-    get3BandSliding (args) {
-        if (!this.conservativeAnalyze()) return -1;
-
-        return this.get3BandSlidingAvg(args.BAND);
-    }
-
-    get3BandSlidingAvg (band) {
-        if (typeof this.frequencyArray === 'undefined') return -1;
-
-        let bandIndex = {
-            'low': 0,
-            'mid': 1,
-            'high': 2
-        };
-
-        return this.slidingAvgResultArray[bandIndex[band]];
     }
 
     get3Band (args) {
@@ -390,6 +357,39 @@ class Scratch3SoundSensingBlocks {
                 energy = (energy / 255) * 100;
                 return energy;
         }
+    }
+
+    whenPeakFlux (args) {
+        if (!this.conservativeAnalyze()) return -1;
+
+        return this._isPeakFlux();
+    }
+
+    isPeakFlux (args) {
+        if (!this.conservativeAnalyze()) return -1;
+
+        return this._isPeakFlux();
+    }
+
+    _isPeakFlux () {
+        if (typeof this.frequencyArray === 'undefined') return false;
+
+        let micCutoff = 0;
+
+        if(Math.sqrt(this.fluxVarResultArray[0]) != 0 && this.spectralFlux - this.fluxAvgResultArray[0] != 0) {
+            var norm = (this.spectralFlux - this.fluxAvgResultArray[0]) / Math.sqrt(this.fluxVarResultArray[0]);
+            // console.log(band + ':\t' + this.avgEnergyArray[bandIndex[band]]);
+        
+            switch (this.audioInput) { // Ensure minimum energy for microphone inputs
+                case 'microphone':
+                    return this.spectralFlux > micCutoff && norm > 1;
+                case 'project':
+                    return norm > 1;
+                case 'all':
+                    return this.spectralFlux > micCutoff && norm > 1;
+            }
+        }
+        return false;
     }
 
     getSpectralFlux (args) {
@@ -486,19 +486,14 @@ class Scratch3SoundSensingBlocks {
             // For sliding mean
             this.slidingAvg = new SlidingArray(7, 3, 'avg');
 
-            // this.slidingAvgArray = new Array(7).fill(0).map(() => new Array(3).fill(0)); // best way to create 2d array
-            // this.slidingAvgOrder = 6; // order of sliding avg = size - 1
-            // this.slidingAvgIndex = 0;
-            // this.slidingAvgResultArray = (new Array(3)).fill(0); // calibrating average
-
             // For sliding standard dev
             this.slidingVar = new SlidingArray(7, 3, 'var');
 
-            // this.slidingStdArray = new Array(7).fill(0).map(() => new Array(3).fill(0)); // best way to create 2d array
-            // this.slidingStdOrder = 6; // order of sliding std = size - 1
-            // this.slidingStdIndex = 0;
-            // this.diffEnergyStdArray = (new Array(3)).fill(0); // current squared differences
-            // this.slidingStdResultArray = (new Array(3)).fill(0); // calibrating standard dev
+            // For sliding spectral flux mean
+            this.slidingFluxAvg = new SlidingArray(7, 1, 'avg');
+
+            // For sliding spectral flux standard dev
+            this.slidingFluxVar = new SlidingArray(7, 1, 'var');
 
             this.avgEnergyArray = (new Array(3)).fill(0);
 
@@ -597,44 +592,27 @@ class Scratch3SoundSensingBlocks {
             this.avgEnergyArray[this.bandIndex[band]] = sum / energyArr.length;
             // this.avgEnergyArray[this.bandIndex[band]] = sum;
 
-            // this.avgEnergyArray[bandIndex[band]] = Math.round(energyArr.reduce((a,b)=>a+b,0) / energyArr.length);
         }
 
-        // // Sliding avg filter
-        // for (var band=0; band<3; band++) {
-        //     this.slidingAvgResultArray[band] += (this.avgEnergyArray[band] - this.slidingAvgArray[this.slidingAvgIndex][band])/(this.slidingAvgOrder + 1);
-        // }
-        // // Copy current avg energy into the right index of sliding array
-        // this.slidingAvgArray[this.slidingAvgIndex].splice(0, this.slidingAvgArray[this.slidingAvgIndex].length, ...this.avgEnergyArray);
-        // this.slidingAvgIndex = (this.slidingAvgIndex + 1)%(this.slidingAvgOrder + 1);
+        // Sliding avg filter
         this.slidingAvgResultArray = this.slidingAvg.step({current: this.avgEnergyArray});
         
-        // Sliding std filter and some std computation
-        // for (var band=0; band<3; band++) {
-        //     this.diffEnergyStdArray[band] = (this.avgEnergyArray[band] - this.slidingAvgResultArray[band])**2;
-        //     this.slidingStdResultArray[band] = Math.sqrt(Math.abs(this.slidingStdResultArray[band]**2 + ((this.diffEnergyStdArray[band] - this.slidingStdArray[this.slidingStdIndex][band]) / this.slidingStdOrder)));
-        // }
-        // // Copy current avg energy difference into the right index of sliding array
-        // this.slidingStdArray[this.slidingStdIndex].splice(0, this.slidingStdArray[this.slidingStdIndex].length, ...this.diffEnergyStdArray);
-        // this.slidingStdIndex = (this.slidingStdIndex + 1)%(this.slidingStdOrder + 1);
+        // Sliding var filter
+        this.slidingVarResultArray = this.slidingVar.step({current: this.avgEnergyArray, average: this.slidingAvgResultArray});
+
+        // Flux avg filter
+        this.fluxAvgResultArray = this.slidingFluxAvg.step({current: [this.spectralFlux]});
         
-        this.slidingStdResultArray = this.slidingVar.step({current: this.avgEnergyArray, average: this.slidingAvgResultArray});
+        // Flux var filter
+        this.fluxVarResultArray = this.slidingFluxVar.step({current: [this.spectralFlux], average: this.fluxAvgResultArray});
     }
 
     /**
      * The "clear" block clears the sound arrays' contents.
      */
     clear () {
-        // For sliding mean
         this.slidingAvg.clear();
-        // this.slidingAvgArray = new Array(7).fill(0).map(() => new Array(3).fill(0)); // best way to create 2d array
-        // this.slidingAvgResultArray = (new Array(3)).fill(0); // calibrating average
-
-        // For sliding standard dev
         this.slidingVar.clear();
-        // this.slidingStdArray = new Array(7).fill(0).map(() => new Array(3).fill(0)); // best way to create 2d array
-        // this.diffEnergyStdArray = (new Array(3)).fill(0); // current squared differences
-        // this.slidingStdResultArray = (new Array(3)).fill(0); // calibrating standard dev
 
         this.avgEnergyArray = (new Array(3)).fill(0);
     }
