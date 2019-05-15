@@ -103,6 +103,41 @@ class Scratch3SoundSensingBlocks {
             menuIconURI: menuIconURI,
             blocks: [
                 {
+                    opcode: 'whenPeakFlux',
+                    text: formatMessage({
+                        id: 'soundSensing.whenPeakFlux',
+                        default: 'when sound changed',
+                        description: 'check when spectral flux canges, calibratedly'
+                    }),
+                    blockType: BlockType.HAT
+                },
+                {
+                    opcode: 'getLoudness',
+                    blockType: BlockType.REPORTER,
+                    text: formatMessage({
+                        id: 'soundSensing.getLoudness',
+                        default: 'loudness',
+                        description: 'get the loudness'
+                    }),
+                },
+                {
+                    opcode: 'setAudioInput',
+                    text: formatMessage({
+                        id: 'soundSensing.setAudioInput',
+                        default: 'listen to [INPUT]',
+                        description: 'set audio input to microphone or project'
+                    }),
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        INPUT: {
+                            type: ArgumentType.STRING,
+                            menu: 'inputs',
+                            defaultValue: 'project'
+                        }
+                    }
+                },
+                '---',
+                {
                     opcode: 'whenPeakSliding',
                     text: formatMessage({
                         id: 'soundSensing.whenPeakSliding',
@@ -123,7 +158,7 @@ class Scratch3SoundSensingBlocks {
                     blockType: BlockType.REPORTER,
                     text: formatMessage({
                         id: 'soundSensing.get3Band',
-                        default: 'loudness of [BAND]',
+                        default: 'loudness [MEASURE] of [BAND] ',
                         description: 'get the energy in the requested three frequency band index'
                     }),
                     arguments: {
@@ -131,58 +166,66 @@ class Scratch3SoundSensingBlocks {
                             type: ArgumentType.STRING,
                             menu: 'bands',
                             defaultValue: 'low'
-                        }
-                    }
-                },
-                // {
-                //     opcode: 'get3BandSliding',
-                //     blockType: BlockType.REPORTER,
-                //     text: formatMessage({
-                //         id: 'soundSensing.get3BandAvg',
-                //         default: 'get sliding 3-band [BAND] data',
-                //         description: 'get the sliding average data in the requested three frequency band index'
-                //     }),
-                //     arguments: {
-                //         BAND: {
-                //             type: ArgumentType.STRING,
-                //             menu: 'bands',
-                //             defaultValue: 'low'
-                //         }
-                //     }
-                // },
-                // {
-                //     opcode: 'whenPeak',
-                //     text: formatMessage({
-                //         id: 'soundSensing.whenPeak',
-                //         default: 'when [BAND] peak',
-                //         description: 'check when audio peaks in a range'
-                //     }),
-                //     blockType: BlockType.HAT,
-                //     arguments: {
-                //         BAND: {
-                //             type: ArgumentType.STRING,
-                //             menu: 'bands',
-                //             defaultValue: 'low'
-                //         }
-                //     }
-                // },
-                {
-                    opcode: 'setAudioInput',
-                    text: formatMessage({
-                        id: 'soundSensing.setAudioInput',
-                        default: 'listen to [INPUT]',
-                        description: 'set audio input to microphone or project'
-                    }),
-                    blockType: BlockType.COMMAND,
-                    arguments: {
-                        INPUT: {
+                        },
+                        MEASURE: {
                             type: ArgumentType.STRING,
-                            menu: 'inputs',
-                            defaultValue: 'project'
+                            menu: 'measure',
+                            defaultValue: 'value'
                         }
                     }
                 },
-                '---',
+                {
+                    opcode: 'getSlidingNormalized',
+                    blockType: BlockType.REPORTER,
+                    text: formatMessage({
+                        id: 'soundSensing.getSlidingNormalized',
+                        default: 'normalized [BAND] energy',
+                        description: 'get a normalized measure of 3-band energy'
+                    }),
+                    arguments: {
+                        BAND: {
+                            type: ArgumentType.STRING,
+                            menu: 'bands',
+                            defaultValue: 'low'
+                        },
+                        MEASURE: {
+                            type: ArgumentType.STRING,
+                            menu: 'measure',
+                            defaultValue: 'value'
+                        }
+                    }
+                },
+                {
+                    opcode: 'getSpectralFlux',
+                    blockType: BlockType.REPORTER,
+                    text: formatMessage({
+                        id: 'soundSensing.getSpectralFlux',
+                        default: 'amount of spectral flux [MEASURE]',
+                        description: 'get the amount of change in spectral energy'
+                    }),
+                    arguments: {
+                        MEASURE: {
+                            type: ArgumentType.STRING,
+                            menu: 'measure',
+                            defaultValue: 'value'
+                        }
+                    }
+                },
+                {
+                    opcode: 'getBand',
+                    blockType: BlockType.REPORTER,
+                    text: formatMessage({
+                        id: 'soundSensing.getBand',
+                        default: 'energy at [BAND] Hz',
+                        description: 'get the energy in the requested frequency band index'
+                    }),
+                    arguments: {
+                        BAND: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
+                        }
+                    }
+                },
                 {
                     opcode: 'replaySound',
                     text: formatMessage({
@@ -199,39 +242,6 @@ class Scratch3SoundSensingBlocks {
                         }
                     },
                     hideFromPalette: true
-                },
-                {
-                    opcode: 'whenPeakFlux',
-                    text: formatMessage({
-                        id: 'soundSensing.whenPeakFlux',
-                        default: 'when sound changed',
-                        description: 'check when spectral flux canges, calibratedly'
-                    }),
-                    blockType: BlockType.HAT
-                },
-                {
-                    opcode: 'getSpectralFlux',
-                    blockType: BlockType.REPORTER,
-                    text: formatMessage({
-                        id: 'soundSensing.getSpectralFlux',
-                        default: 'amount of spectral flux',
-                        description: 'get the amount of change in spectral energy'
-                    })
-                },
-                {
-                    opcode: 'getBand',
-                    blockType: BlockType.REPORTER,
-                    text: formatMessage({
-                        id: 'soundSensing.getBand',
-                        default: 'energy at [BAND] Hz',
-                        description: 'get the energy in the requested frequency band index'
-                    }),
-                    arguments: {
-                        BAND: {
-                            type: ArgumentType.NUMBER,
-                            defaultValue: 1
-                        }
-                    }
                 }
             ],
             menus: {
@@ -262,6 +272,16 @@ class Scratch3SoundSensingBlocks {
                         text: 'all',
                         value: 'all'
                     }
+                ],
+                measure: [
+                    {
+                        text: 'value',
+                        value: 'value'
+                    },
+                    {
+                        text: 'threshold',
+                        value: 'threshold'
+                    }
                 ]
             }
         };
@@ -281,20 +301,14 @@ class Scratch3SoundSensingBlocks {
 
     _isPeakSliding (band) {
         if (typeof this.frequencyArray === 'undefined') return false;
-
-        let bandIndex = {
-            'low': 0,
-            'mid': 1,
-            'high': 2
-        };
         let micCutoff = {
             'low': 100,
             'mid': 50,
             'high': 5
         };
 
-        if(Math.sqrt(this.slidingVarResultArray[bandIndex[band]]) != 0 && this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]] != 0) {
-            var norm = (this.avgEnergyArray[bandIndex[band]] - this.slidingAvgResultArray[bandIndex[band]]) / Math.sqrt(this.slidingVarResultArray[bandIndex[band]]);
+        if(Math.sqrt(this.slidingVarResultArray[this.bandIndex[band]]) != 0 && this.avgEnergyArray[this.bandIndex[band]] - this.slidingAvgResultArray[this.bandIndex[band]] != 0) {
+            var norm = (this.avgEnergyArray[this.bandIndex[band]] - this.slidingAvgResultArray[this.bandIndex[band]]) / Math.sqrt(this.slidingVarResultArray[this.bandIndex[band]]);
             // console.log(band + ':\t' + this.avgEnergyArray[bandIndex[band]]);
             if(norm > 1 && band == 'low') {
                 this.replayBuf = this.soundBuf;
@@ -302,32 +316,60 @@ class Scratch3SoundSensingBlocks {
         
             switch (this.audioInput) { // Ensure minimum energy for microphone inputs
                 case 'microphone':
-                    return this.avgEnergyArray[bandIndex[band]] > micCutoff[band] && norm > 1;
+                    return this.avgEnergyArray[this.bandIndex[band]] > micCutoff[band] && norm > 1;
                 case 'project':
                     return norm > 1;
                 case 'all':
-                    return this.avgEnergyArray[bandIndex[band]] > micCutoff[band] && norm > 1;
+                    return this.avgEnergyArray[this.bandIndex[band]] > micCutoff[band] && norm > 1;
             }
         }
         return false;
     }
 
-    get3Band (args) {
-        if (!this.conservativeAnalyze()) return -1;
-
-        return this.get3BandValue(args.BAND);
+    getSlidingNormalized (args) {
+        band = args.BAND;
+        var norm = (this.avgEnergyArray[this.bandIndex[band]] - this.slidingAvgResultArray[this.bandIndex[band]]) / Math.sqrt(this.slidingVarResultArray[this.bandIndex[band]]);
+        return norm;
     }
 
-    get3BandValue (band) {
+    getLoudness (args) {
+        if (!this.conservativeAnalyze()) return -1;
         if (typeof this.frequencyArray === 'undefined') return -1;
 
-        let bandIndex = {
-            'low': 0,
-            'mid': 1,
-            'high': 2
-        };
+        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
+            case 'microphone':
+                energyArr = this.frequencyArrayMic;
+                break;
+            case 'project':
+                energyArr = this.frequencyArray;
+                break;
+            case 'all':
+                energyArr = this.frequencyArray;
+                for( var i = 0; i < energyArr.length; i++ ){
+                    energyArr[i] = Math.max(energyArr[i], this.frequencyArrayMic[i])
+                }
+                break;
+        }
+        // Store average energies into avgEnergyArray, low average at index 0, and mid, high, etc.
+        var sum = 0;
+        for( var i = 0; i < energyArr.length; i++ ){
+            sum += energyArr[i];
+        }
+        
+        return sum;
+    }
 
-        return this.avgEnergyArray[bandIndex[band]];
+    get3Band (args) {
+        if (!this.conservativeAnalyze()) return -1;
+        if (typeof this.frequencyArray === 'undefined') return -1;
+
+        band = args.BAND;
+
+        if(args.MEASURE == 'threshold') {
+            return this.slidingAvgResultArray[this.bandIndex[band]];
+        }
+
+        return this.avgEnergyArray[this.bandIndex[band]];
     }
 
     getBand (args) {
@@ -395,7 +437,17 @@ class Scratch3SoundSensingBlocks {
     getSpectralFlux (args) {
         if (!this.conservativeAnalyze()) return -1;
 
-        return this.spectralFlux;
+        if(args.MEASURE == 'threshold') {
+            return this.fluxAvgResultArray[0];
+        }
+        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
+            case 'microphone':
+                return this.spectralFluxMic;
+            case 'project':
+                return this.spectralFlux;
+            case 'all':
+                return Math.max(this.spectralFluxMic, this.spectralFlux);
+        }
     }
 
 // From https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext
@@ -545,13 +597,22 @@ class Scratch3SoundSensingBlocks {
             }.bind(this)
 
             this.spectralFlux = 0;
+            this.spectralFluxMic = 0;
 
             this.started = true;
         }
 
         // If the microphone is set up and active, analyze the spectrum
         if (this.mic && this.audioStream.active) {
+            // Refresh project sound frequencies
+            this.frequencyArrayMicOld = this.frequencyArrayMic.slice()
             this.analyserMic.getByteFrequencyData(this.frequencyArrayMic);
+
+            // Spectral flux
+            this.spectralFluxMic = 0;
+            for( var i = 0; i < this.frequencyArrayMic.length; i++ ){
+                this.spectralFluxMic += Math.abs(this.frequencyArrayMic[i] - this.frequencyArrayMicOld[i]); // L2 norm
+            }
         }
 
         // Refresh project sound frequencies
@@ -561,7 +622,7 @@ class Scratch3SoundSensingBlocks {
         // Spectral flux
         this.spectralFlux = 0;
         for( var i = 0; i < this.frequencyArray.length; i++ ){
-            this.spectralFlux += Math.abs(this.frequencyArray[i] - this.frequencyArrayOld[i]);
+            this.spectralFlux += Math.abs(this.frequencyArray[i] - this.frequencyArrayOld[i]); // L2 norm
         }
 
         // Update average energy
@@ -600,19 +661,30 @@ class Scratch3SoundSensingBlocks {
         // Sliding var filter
         this.slidingVarResultArray = this.slidingVar.step({current: this.avgEnergyArray, average: this.slidingAvgResultArray});
 
+        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
+            case 'microphone':
+                this.activeFlux = this.spectralFluxMic;
+            case 'project':
+                this.activeFlux =  this.spectralFlux;
+            case 'all':
+                this.activeFlux = Math.max(this.spectralFluxMic, this.spectralFlux);
+        }
+
         // Flux avg filter
-        this.fluxAvgResultArray = this.slidingFluxAvg.step({current: [this.spectralFlux]});
+        this.fluxAvgResultArray = this.slidingFluxAvg.step({current: [this.activeFlux]});
         
         // Flux var filter
-        this.fluxVarResultArray = this.slidingFluxVar.step({current: [this.spectralFlux], average: this.fluxAvgResultArray});
+        this.fluxVarResultArray = this.slidingFluxVar.step({current: [this.activeFlux], average: this.fluxAvgResultArray});
     }
 
     /**
      * The "clear" block clears the sound arrays' contents.
      */
     clear () {
-        this.slidingAvg.clear();
-        this.slidingVar.clear();
+        if(this.slidingAvg)
+            this.slidingAvg.clear();
+        if(this.slidingVar)
+            this.slidingVar.clear();
 
         this.avgEnergyArray = (new Array(3)).fill(0);
     }
