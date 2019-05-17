@@ -418,17 +418,17 @@ class Scratch3SoundSensingBlocks {
 
         let micCutoff = 0;
 
-        if(Math.sqrt(this.fluxVarResultArray[0]) != 0 && this.spectralFlux - this.fluxAvgResultArray[0] != 0) {
-            var norm = (this.spectralFlux - this.fluxAvgResultArray[0]) / Math.sqrt(this.fluxVarResultArray[0]);
+        if(Math.sqrt(this.fluxVarResultArray[0]) != 0 && this.activeFlux - this.fluxAvgResultArray[0] != 0) {
+            var norm = (this.activeFlux - this.fluxAvgResultArray[0]) / Math.sqrt(this.fluxVarResultArray[0]);
             // console.log(band + ':\t' + this.avgEnergyArray[bandIndex[band]]);
         
             switch (this.audioInput) { // Ensure minimum energy for microphone inputs
                 case 'microphone':
-                    return this.spectralFlux > micCutoff && norm > 1;
+                    return this.activeFlux > micCutoff && norm > 0.5;
                 case 'project':
-                    return norm > 1;
+                    return norm > 0.5;
                 case 'all':
-                    return this.spectralFlux > micCutoff && norm > 1;
+                    return this.activeFlux > micCutoff && norm > 0.5;
             }
         }
         return false;
@@ -440,14 +440,7 @@ class Scratch3SoundSensingBlocks {
         if(args.MEASURE == 'threshold') {
             return this.fluxAvgResultArray[0];
         }
-        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
-            case 'microphone':
-                return this.spectralFluxMic;
-            case 'project':
-                return this.spectralFlux;
-            case 'all':
-                return Math.max(this.spectralFluxMic, this.spectralFlux);
-        }
+        return this.activeFlux;
     }
 
 // From https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext
@@ -479,7 +472,8 @@ class Scratch3SoundSensingBlocks {
                 this.analyserMic.smoothingTimeConstant = 0.2;
                 this.mic.connect(this.analyserMic);
                 this.frequencyArrayMic = new Uint8Array(this.analyserMic.frequencyBinCount);
-
+                this.frequencyArrayMicOld = new Uint8Array(this.analyserMic.frequencyBinCount);
+                this.spectralFluxMic
             })
             .catch(err => {
                 log.warn(err);
@@ -542,10 +536,10 @@ class Scratch3SoundSensingBlocks {
             this.slidingVar = new SlidingArray(7, 3, 'var');
 
             // For sliding spectral flux mean
-            this.slidingFluxAvg = new SlidingArray(7, 1, 'avg');
+            this.slidingFluxAvg = new SlidingArray(12, 1, 'avg');
 
             // For sliding spectral flux standard dev
-            this.slidingFluxVar = new SlidingArray(7, 1, 'var');
+            this.slidingFluxVar = new SlidingArray(12, 1, 'var');
 
             this.avgEnergyArray = (new Array(3)).fill(0);
 
@@ -603,13 +597,13 @@ class Scratch3SoundSensingBlocks {
         }
 
         // If the microphone is set up and active, analyze the spectrum
+        this.spectralFluxMic = 0;
         if (this.mic && this.audioStream.active) {
             // Refresh project sound frequencies
             this.frequencyArrayMicOld = this.frequencyArrayMic.slice()
             this.analyserMic.getByteFrequencyData(this.frequencyArrayMic);
 
             // Spectral flux
-            this.spectralFluxMic = 0;
             for( var i = 0; i < this.frequencyArrayMic.length; i++ ){
                 this.spectralFluxMic += Math.abs(this.frequencyArrayMic[i] - this.frequencyArrayMicOld[i]); // L2 norm
             }
@@ -621,9 +615,22 @@ class Scratch3SoundSensingBlocks {
 
         // Spectral flux
         this.spectralFlux = 0;
-        for( var i = 0; i < this.frequencyArray.length; i++ ){
+        for( var i = 0; i < this.frequencyArray.length; i++ ){ // all bins
             this.spectralFlux += Math.abs(this.frequencyArray[i] - this.frequencyArrayOld[i]); // L2 norm
         }
+        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
+            case 'microphone':
+                this.activeFlux = this.spectralFluxMic;
+                break;
+            case 'project':
+                this.activeFlux =  this.spectralFlux;
+                break;
+            case 'all':
+                this.activeFlux = Math.max(this.spectralFluxMic, this.spectralFlux);
+                break;
+        }
+
+        console.log(this.spectralFluxMic);
 
         // Update average energy
 
@@ -631,16 +638,18 @@ class Scratch3SoundSensingBlocks {
         for (let band of ['low', 'mid', 'high']) {
             switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
                 case 'microphone':
-                    energyArr = this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1]);
+                    if (this.mic && this.audioStream.active)
+                        energyArr = this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1]);
                     break;
                 case 'project':
                     energyArr = this.frequencyArray.slice(this.bandValues[band][0],this.bandValues[band][1]);
                     break;
                 case 'all':
                     energyArr = this.frequencyArray.slice(this.bandValues[band][0],this.bandValues[band][1]);
-                    for( var i = 0; i < energyArr.length; i++ ){
-                        energyArr[i] = Math.max(energyArr[i], this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1])[i])
-                    }
+                    if (this.mic && this.audioStream.active)
+                        for( var i = 0; i < energyArr.length; i++ ){
+                            energyArr[i] = Math.max(energyArr[i], this.frequencyArrayMic.slice(this.bandValues[band][0],this.bandValues[band][1])[i])
+                        }
                     break;
             }
             // Store average energies into avgEnergyArray, low average at index 0, and mid, high, etc.
@@ -660,15 +669,6 @@ class Scratch3SoundSensingBlocks {
         
         // Sliding var filter
         this.slidingVarResultArray = this.slidingVar.step({current: this.avgEnergyArray, average: this.slidingAvgResultArray});
-
-        switch (this.audioInput) { // Stored parts of frequency array into energy array, based on desired band.
-            case 'microphone':
-                this.activeFlux = this.spectralFluxMic;
-            case 'project':
-                this.activeFlux =  this.spectralFlux;
-            case 'all':
-                this.activeFlux = Math.max(this.spectralFluxMic, this.spectralFlux);
-        }
 
         // Flux avg filter
         this.fluxAvgResultArray = this.slidingFluxAvg.step({current: [this.activeFlux]});
